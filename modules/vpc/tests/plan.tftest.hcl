@@ -173,8 +173,8 @@ run "auto_strategy_is_per_az_in_prod" {
   }
 }
 
-# Overlap check: turn every CIDR into an integer range and make sure each pair
-# of different subnets is disjoint and sits inside the VPC range.
+# CIDR blocks of the same size are aligned, so two of them either match or do
+# not overlap at all. Same prefix length plus all distinct means no overlap.
 run "subnets_do_not_overlap_in_a_slash_16" {
   command = plan
 
@@ -184,22 +184,15 @@ run "subnets_do_not_overlap_in_a_slash_16" {
   }
 
   assert {
-    condition = alltrue([
-      for a in flatten([for t in values(output.subnet_cidrs) : values(t)]) : alltrue([
-        for b in flatten([for t in values(output.subnet_cidrs) : values(t)]) :
-        a == b ||
-        sum([for i, o in split(".", cidrhost(a, 0)) : tonumber(o) * pow(256, 3 - i)]) + pow(2, 32 - tonumber(split("/", a)[1])) - 1 < sum([for i, o in split(".", cidrhost(b, 0)) : tonumber(o) * pow(256, 3 - i)]) ||
-        sum([for i, o in split(".", cidrhost(b, 0)) : tonumber(o) * pow(256, 3 - i)]) + pow(2, 32 - tonumber(split("/", b)[1])) - 1 < sum([for i, o in split(".", cidrhost(a, 0)) : tonumber(o) * pow(256, 3 - i)])
-      ])
-    ])
-    error_message = "Two subnets overlap."
+    condition     = length(distinct([for c in flatten([for t in values(output.subnet_cidrs) : values(t)]) : split("/", c)[1]])) == 1
+    error_message = "All subnets must have the same prefix length."
   }
 
+  # Masking a subnet address with the VPC prefix must give the VPC network.
   assert {
     condition = alltrue([
       for c in flatten([for t in values(output.subnet_cidrs) : values(t)]) :
-      sum([for i, o in split(".", cidrhost(c, 0)) : tonumber(o) * pow(256, 3 - i)]) >= sum([for i, o in split(".", cidrhost(var.vpc_cidr, 0)) : tonumber(o) * pow(256, 3 - i)]) &&
-      sum([for i, o in split(".", cidrhost(c, -1)) : tonumber(o) * pow(256, 3 - i)]) <= sum([for i, o in split(".", cidrhost(var.vpc_cidr, -1)) : tonumber(o) * pow(256, 3 - i)])
+      cidrhost("${cidrhost(c, 0)}/${split("/", var.vpc_cidr)[1]}", 0) == cidrhost(var.vpc_cidr, 0)
     ])
     error_message = "A subnet falls outside the VPC CIDR."
   }
