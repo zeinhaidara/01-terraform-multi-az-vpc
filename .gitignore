@@ -9,4 +9,4 @@ crash.log
 modules/**/.terraform.lock.hcl
 
 # local notes
-.claude-local/
+.design-docs/

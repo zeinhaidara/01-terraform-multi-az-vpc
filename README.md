@@ -113,23 +113,23 @@ A /16 gives /20 subnets (4091 usable addresses each). A /24 gives /28 subnets (1
 
 | Decision | Alternative considered | Why |
 |---|---|---|
-| NAT per AZ in prod, one shared NAT in dev and stage (`nat_strategy`, default `auto`) | One NAT everywhere; NAT per AZ everywhere | A NAT gateway lives in one AZ. If that AZ fails, every AZ routed through it loses outbound access, and traffic from other AZs pays cross-AZ charges. Prod pays for resilience; dev does not need it. The default comes from `environment` and can be overridden. |
-| Gateway endpoints for S3 and DynamoDB | Send that traffic through NAT | Gateway endpoints are free and remove NAT data processing charges for what is usually the largest traffic class. They also give the isolated tier a private route to S3. |
-| Interface endpoints for ecr.api, ecr.dkr, sts, logs | Reach them through NAT | Image pulls, role assumption and log shipping stay on the AWS network and keep working if a NAT fails. They cost money per AZ, so `enable_interface_endpoints` can switch them off. ECR image layers come from S3, which the gateway endpoint covers. |
-| Isolated subnets have no route out | Route databases through NAT for updates | A database with no default route cannot be reached from the internet or send data to it, even if a security group is misconfigured. Managed databases patch through the service plane, not through your VPC. The only exit is the S3/DynamoDB prefix-list route. |
-| Private route table per AZ, one shared public table and one shared isolated table | One private table for all AZs | Each AZ needs its own next hop to use its own NAT. Public and isolated tables are the same in every AZ, so one each is enough. |
+| NAT per AZ in prod, one shared NAT in dev and stage (`nat_strategy = auto`) | Same NAT layout everywhere | A NAT gateway lives in one AZ. If that AZ fails, every AZ routed through it loses outbound access, and other AZs pay cross-AZ charges. Prod pays for resilience; dev does not need it. Can be overridden. |
+| Gateway endpoints for S3 and DynamoDB | Send that traffic through NAT | Free, and removes NAT data charges for what is usually the largest traffic class. Also gives the isolated tier a private route to S3. |
+| Interface endpoints for ecr.api, ecr.dkr, sts, logs | Reach them through NAT | Image pulls, role assumption and log shipping stay on the AWS network and keep working if a NAT fails. They cost money per AZ, so `enable_interface_endpoints` can switch them off. |
+| Isolated subnets have no route out | Route databases through NAT | A database with no default route cannot reach or be reached from the internet, even with a bad security group. Managed databases patch through the service plane. The only exit is the S3/DynamoDB prefix-list route. |
+| Private route table per AZ | One private table for all AZs | Each AZ needs its own next hop to use its own NAT. Public and isolated tables are the same in every AZ, so one each is enough. |
 | Subnet slots fixed per tier and AZ index | Pack subnets back to back | Changing `az_count` never renumbers an existing subnet, which would force replacement of everything inside it. |
-| AZs from `aws_availability_zones` (`state = available`, `opt-in-not-required`), sorted, first N | Hardcoded AZ names; include Local Zones | Works in any region and account, excludes Local and Wavelength zones, and gives the same choice on every run. Fails at plan time if the region has fewer AZs than `az_count`. |
-| `modules/vpc` plus two example root configs | A single root module | Keeps the reusable part apart from environment wiring. Each example is a complete root configuration with its own lock file. |
-| `region` is an input, not read from the provider | `data.aws_region` | Endpoint service names are built from it, and the module needs no extra lookup. |
-| Flow logs to CloudWatch Logs, `ALL` traffic, 60 s aggregation | S3 destination; `REJECT` only | CloudWatch is queryable at once with Logs Insights. S3 is cheaper at volume and is listed under next steps. |
-| Flow log IAM role limited to one log group and three actions, trust limited by `aws:SourceAccount` and `aws:SourceArn` | Managed or wildcard policy | Least privilege and no confused-deputy path. The module creates the log group, so `logs:CreateLogGroup` is not needed. |
-| Default security group emptied, `map_public_ip_on_launch = false` | Leave AWS defaults | Nothing attaches to the default group by accident, and nothing gets a public IP unless asked. |
-| Tests use a mocked AWS provider, plan only | Real plans against an account | No credentials, no cost, runs in CI on forks. The trade-off is that provider-side validation is not exercised. |
-| AWS provider `~> 6.0`, Terraform `>= 1.9, < 2.0` | Unpinned; exact patch pin | A major pin takes minor and patch fixes but blocks breaking changes. Lock files in the examples pin exact builds. |
-| Endpoint security group has an ingress rule only | Add an allow-all egress rule | Endpoint ENIs only answer inbound requests, so egress is unnecessary. |
-| Log retention limited to values CloudWatch accepts | Free-form number | Catches a bad value at plan time instead of at apply. |
-| Both Checkov exceptions (retention under one year, default log group encryption) recorded inline | Fix or hide them | Retention is a variable and the prod example uses 365 days. A KMS key is a next step. The reasons sit next to the code. |
+| AZs from `aws_availability_zones`, sorted, first N | Hardcoded AZ names | Works in any region, skips opt-in Local and Wavelength zones, and gives the same choice every run. Fails at plan time if the region has too few AZs. |
+| Plan-only tests with a mocked provider | Real plans against an account | No credentials, no cost, runs in CI on forks. Provider-side validation is not exercised. |
+
+Other choices, briefly:
+
+- `modules/vpc` plus two example root configs, so environment wiring stays out of the module.
+- Flow logs go to CloudWatch Logs (`ALL` traffic, 60 s windows) for immediate querying. S3 is a next step.
+- The flow log role can write only to its own log group, and its trust policy is limited to this account's flow logs.
+- The default security group is emptied and public subnets do not auto-assign public IPs.
+- AWS provider `~> 6.0` and Terraform `>= 1.9, < 2.0`. The examples' lock files pin exact builds.
+- Three Checkov findings are skipped inline with reasons: log retention under a year (a variable; prod uses 365), default log group encryption (KMS is a next step), and AZ pinning (only the first N sorted names are used).
 
 ## Prerequisites and usage
 
@@ -224,7 +224,7 @@ checkov -d . --framework terraform
 
 ## Cost notes
 
-Figures are us-east-1 list prices as I know them. Check current pricing before relying on them.
+Figures are us-east-1 list prices at the time of writing (October 2026). Check current pricing before relying on them.
 
 | Item | Approx. cost |
 |---|---|
