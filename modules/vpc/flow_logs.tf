@@ -4,6 +4,7 @@ data "aws_partition" "current" {}
 
 # tfsec:ignore:aws-cloudwatch-log-group-customer-key
 resource "aws_cloudwatch_log_group" "flow_logs" {
+  #checkov:skip=CKV_AWS_338:Retention is a variable. The prod example sets 365 days; dev keeps less to save cost.
   #checkov:skip=CKV_AWS_158:Default CloudWatch Logs encryption is accepted here; a KMS key is listed under next steps in the README.
   name              = "/aws/vpc/flow-logs/${local.name}"
   retention_in_days = var.flow_log_retention_days

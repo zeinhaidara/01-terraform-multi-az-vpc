@@ -1,4 +1,5 @@
 data "aws_availability_zones" "available" {
+  #checkov:skip=CKV_AWS_394:Only the first az_count sorted names are used, so a newly added AZ does not change the result.
   state = "available"
 
   # Skip Local Zones and Wavelength Zones, which need opt-in and lack some services.

@@ -27,8 +27,7 @@ variable "vpc_cidr" {
   validation {
     condition = (
       can(cidrhost(var.vpc_cidr, 0)) &&
-      tonumber(split("/", var.vpc_cidr)[1]) >= 16 &&
-      tonumber(split("/", var.vpc_cidr)[1]) <= 24
+      try(tonumber(split("/", var.vpc_cidr)[1]) >= 16 && tonumber(split("/", var.vpc_cidr)[1]) <= 24, false)
     )
     error_message = "vpc_cidr must be a valid IPv4 CIDR with a prefix length from /16 to /24."
   }
