@@ -224,7 +224,7 @@ checkov -d . --framework terraform
 
 ## Cost notes
 
-Figures are us-east-1 list prices as I know them. Check current pricing before relying on them.
+Figures are us-east-1 list prices at the time of writing (October 2026). Check current pricing before relying on them.
 
 | Item | Approx. cost |
 |---|---|
