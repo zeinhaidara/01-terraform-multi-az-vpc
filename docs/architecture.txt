@@ -1,0 +1,42 @@
+                                   Internet
+                                       |
+                              +--------+--------+
+                              | Internet Gateway|
+                              +--------+--------+
+                                       |
+ VPC 10.0.0.0/16  (3 AZs shown)        |  public route table: 0.0.0.0/0 -> IGW
+ ======================================|====================================
+                                       |
+   AZ a                        AZ b    |                 AZ c
+ +----------------+      +----------------+      +----------------+
+ | PUBLIC  /20    |      | PUBLIC  /20    |      | PUBLIC  /20    |
+ | ALB nodes      |      | ALB nodes      |      | ALB nodes      |
+ | [NAT GW a]     |      | [NAT GW b]     |      | [NAT GW c]     |  prod: 1 per AZ
+ +-------+--------+      +-------+--------+      +-------+--------+  dev/stage: only
+         | ^ HTTP(S) from ALB    |                       |            NAT GW a exists
+         v |                     v                       v
+ +----------------+      +----------------+      +----------------+
+ | PRIVATE /20    |      | PRIVATE /20    |      | PRIVATE /20    |  one route table
+ | app tier       |      | app tier       |      | app tier       |  per AZ:
+ | [ENI: ecr.api, |      | [ENI: ecr.api, |      | [ENI: ecr.api, |  0.0.0.0/0 -> NAT
+ |  ecr.dkr, sts, |      |  ecr.dkr, sts, |      |  ecr.dkr, sts, |  (own AZ in prod,
+ |  logs]         |      |  logs]         |      |  logs]         |   shared in dev)
+ +-------+--------+      +-------+--------+      +-------+--------+
+         |  tcp 3306/5432        |                       |
+         v                       v                       v
+ +----------------+      +----------------+      +----------------+
+ | ISOLATED /20   |      | ISOLATED /20   |      | ISOLATED /20   |  one route table:
+ | database tier  |      | database tier  |      | database tier  |  local route only,
+ |                |      |                |      |                |  NO default route
+ +----------------+      +----------------+      +----------------+
+
+ Data paths
+ ----------
+  1. User -> IGW -> ALB (public) -> app (private) -> database (isolated)
+  2. App -> internet (patches, third-party APIs): private RT -> NAT GW -> IGW
+  3. App -> S3 / DynamoDB: private RT -> gateway endpoint (prefix list), no NAT
+  4. App -> ECR, STS, CloudWatch Logs: interface endpoint ENIs in the private
+     subnets via private DNS, HTTPS 443 from the VPC CIDR only, no NAT
+  5. Database -> S3 / DynamoDB only (backups, exports): isolated RT -> gateway
+     endpoint. Nothing else leaves the isolated tier.
+  6. All ENI traffic in the VPC -> VPC Flow Logs -> CloudWatch Logs
