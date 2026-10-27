@@ -7,3 +7,6 @@ crash.log
 .terraform.tfstate.lock.info
 # lock files are committed for the examples only
 modules/**/.terraform.lock.hcl
+
+# local notes
+.claude-local/
