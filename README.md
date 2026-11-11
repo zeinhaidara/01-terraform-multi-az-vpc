@@ -1,4 +1,4 @@
-# Multi-AZ three-tier VPC (Terraform)
+# Multi-AZ three-tier VPC module
 
 A Terraform module for a three-tier web application landing zone on AWS: public, private and isolated subnets across 2 or 3 availability zones, with NAT, VPC endpoints and flow logs wired in. It is plan-tested without AWS credentials. Nothing in this repository has been applied to an account.
 
@@ -186,7 +186,7 @@ checkov -d . --framework terraform
 
 `vpc_id`, `vpc_cidr`, `availability_zones`, `public_subnet_ids`, `private_subnet_ids`, `isolated_subnet_ids` (each keyed by AZ), `subnet_cidrs`, `nat_gateway_ids` (keyed by AZ), `nat_strategy`, `route_table_ids`, `gateway_endpoint_ids` (keyed by `s3`, `dynamodb`), `interface_endpoint_ids` (keyed by service), `endpoint_security_group_id`, `flow_log_group_name`.
 
-### Tests
+### Validation
 
 `modules/vpc/tests` holds native `terraform test` files. They use `command = plan` against a mocked AWS provider and assert:
 

@@ -10,3 +10,7 @@ modules/**/.terraform.lock.hcl
 
 # local notes
 .design-docs/
+*.tfplan
+__pycache__/
+*.pyc
+memory/
